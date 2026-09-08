@@ -146,7 +146,6 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      overflow: visible;
     }
 
     .carousel-slide img {
@@ -576,21 +575,55 @@
   }
 
   function addPinchZoom(el) {
+    let overlay = null, overlayImg = null;
     let scale = 1, startDist = 0;
     let translateX = 0, translateY = 0;
     let startTranslateX = 0, startTranslateY = 0;
     let startMidX = 0, startMidY = 0;
-    let isPinching = false;
+    let baseScale = 1;
 
-    function applyTransform(transition = false) {
-      el.style.transition = transition ? 'transform 0.25s ease' : 'none';
-      el.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
+    function createOverlay() {
+      const rect = el.getBoundingClientRect();
+      overlay = document.createElement('div');
+      overlay.style.cssText = `
+        position: fixed; inset: 0; z-index: 999;
+        background: rgba(0,0,0,0.85);
+        display: flex; align-items: center; justify-content: center;
+        overflow: hidden;
+      `;
+      overlayImg = document.createElement('img');
+      overlayImg.src = el.src || el.poster || '';
+      overlayImg.style.cssText = `
+        max-width: 100%; max-height: 100%;
+        object-fit: contain;
+        transform-origin: center center;
+        transition: none;
+        user-select: none; -webkit-user-select: none;
+      `;
+      overlay.appendChild(overlayImg);
+      document.body.appendChild(overlay);
+      translateX = 0; translateY = 0; scale = 1; baseScale = 1;
+    }
+
+    function removeOverlay() {
+      if (!overlay) return;
+      overlayImg.style.transition = 'transform 0.25s ease';
+      overlayImg.style.transform = 'translate(0px, 0px) scale(1)';
+      setTimeout(() => {
+        if (overlay) { document.body.removeChild(overlay); overlay = null; overlayImg = null; }
+      }, 250);
+    }
+
+    function applyTransform() {
+      if (!overlayImg) return;
+      overlayImg.style.transition = 'none';
+      overlayImg.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
     }
 
     el.addEventListener('touchstart', e => {
       if (e.touches.length === 2) {
         e.preventDefault();
-        isPinching = true;
+        if (!overlay) createOverlay();
         startDist = Math.hypot(
           e.touches[0].clientX - e.touches[1].clientX,
           e.touches[0].clientY - e.touches[1].clientY
@@ -599,73 +632,52 @@
         startMidY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
         startTranslateX = translateX;
         startTranslateY = translateY;
-        el.style.transformOrigin = 'center center';
+        baseScale = scale;
       }
     }, { passive: false });
 
     el.addEventListener('touchmove', e => {
-      if (e.touches.length === 2 && isPinching) {
+      if (e.touches.length === 2 && overlay) {
         e.preventDefault();
         const dist = Math.hypot(
           e.touches[0].clientX - e.touches[1].clientX,
           e.touches[0].clientY - e.touches[1].clientY
         );
-        const newScale = Math.min(Math.max((dist / startDist) * scale, 1), 4);
         const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
         const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+        scale = Math.min(Math.max((dist / startDist) * baseScale, 1), 4);
         translateX = startTranslateX + (midX - startMidX);
         translateY = startTranslateY + (midY - startMidY);
-        scale = newScale;
         applyTransform();
       }
     }, { passive: false });
 
     el.addEventListener('touchend', e => {
-      if (e.touches.length < 2) {
-        if (scale <= 1) {
-          scale = 1;
-          translateX = 0;
-          translateY = 0;
-          applyTransform(true);
-        } else {
-          // Persist current scale/position for continued dragging
-          startDist = 0;
-        }
-        isPinching = false;
+      if (overlay && e.touches.length === 0) {
+        removeOverlay();
+        scale = 1; translateX = 0; translateY = 0;
       }
     });
 
-    // Single finger drag while zoomed
-    let dragStartX = 0, dragStartY = 0;
-    let dragTranslateX = 0, dragTranslateY = 0;
-
+    // Single finger pan while overlay is open
+    let dragStartX = 0, dragStartY = 0, dragBaseX = 0, dragBaseY = 0;
     el.addEventListener('touchstart', e => {
-      if (e.touches.length === 1 && scale > 1) {
-        e.preventDefault();
+      if (e.touches.length === 1 && overlay && scale > 1) {
         dragStartX = e.touches[0].clientX;
         dragStartY = e.touches[0].clientY;
-        dragTranslateX = translateX;
-        dragTranslateY = translateY;
+        dragBaseX = translateX;
+        dragBaseY = translateY;
       }
-    }, { passive: false });
+    }, { passive: true });
 
     el.addEventListener('touchmove', e => {
-      if (e.touches.length === 1 && scale > 1 && !isPinching) {
+      if (e.touches.length === 1 && overlay && scale > 1) {
         e.preventDefault();
-        translateX = dragTranslateX + (e.touches[0].clientX - dragStartX);
-        translateY = dragTranslateY + (e.touches[0].clientY - dragStartY);
+        translateX = dragBaseX + (e.touches[0].clientX - dragStartX);
+        translateY = dragBaseY + (e.touches[0].clientY - dragStartY);
         applyTransform();
       }
     }, { passive: false });
-
-    el.addEventListener('touchend', e => {
-      if (e.touches.length === 0 && scale <= 1) {
-        scale = 1;
-        translateX = 0;
-        translateY = 0;
-        applyTransform(true);
-      }
-    });
   }
 
   function buildCarousel(slides) {
