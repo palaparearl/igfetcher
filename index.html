@@ -591,6 +591,9 @@
         display: flex; align-items: center; justify-content: center;
         overflow: hidden;
       `;
+      overlay.addEventListener('touchstart', e => e.stopPropagation(), { passive: false });
+      overlay.addEventListener('touchmove', e => e.stopPropagation(), { passive: false });
+      overlay.addEventListener('touchend', e => e.stopPropagation(), { passive: false });
       overlayImg = document.createElement('img');
       overlayImg.src = el.src || el.poster || '';
       overlayImg.style.cssText = `
