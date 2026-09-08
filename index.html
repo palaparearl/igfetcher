@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>IG Fetcher</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #fafafa;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      color: #262626;
+    }
+
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: #fff;
+      border-bottom: 1px solid #dbdbdb;
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .header-row {
+      display: flex;
+      gap: 8px;
+      width: 100%;
+    }
+
+    #keyword-input, #token-input {
+      flex: 1;
+      border: 1px solid #dbdbdb;
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 14px;
+      outline: none;
+      min-width: 0;
+    }
+
+    #keyword-input:focus, #token-input:focus { border-color: #a8a8a8; }
+
+    #filter-btn {
+      background: #0095f6;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 8px 16px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    #fetch-btn {
+      background: #2d3748;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    #fetch-btn:hover { background: #1a202c; }
+    #fetch-btn:disabled { background: #a0aec0; cursor: not-allowed; }
+
+    #loader {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.6);
+      z-index: 200;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .loader-inner {
+      background: #fff;
+      border-radius: 12px;
+      padding: 32px 40px;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 4px solid #e2e8f0;
+      border-top-color: #0095f6;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    #loader-text {
+      font-size: 14px;
+      color: #4a5568;
+      max-width: 220px;
+      line-height: 1.5;
+    }
+
+    #status {
+      text-align: center;
+      padding: 12px;
+      font-size: 13px;
+      color: #8e8e8e;
+    }
+
+    #feed {
+      max-width: 470px;
+      margin: 0 auto;
+      padding-bottom: 40px;
+    }
+
+    .post-card {
+      background: #fff;
+      border: 1px solid #dbdbdb;
+      border-radius: 8px;
+      margin: 12px 8px;
+      overflow: hidden;
+    }
+
+    /* Carousel */
+    .carousel {
+      position: relative;
+      background: #000;
+      overflow: hidden;
+    }
+
+    .carousel-track {
+      display: flex;
+      transition: transform 0.3s ease;
+    }
+
+    .carousel-slide {
+      min-width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .carousel-slide img {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+
+    .carousel-slide video {
+      width: 100%;
+      height: auto;
+      display: block;
+      background: #000;
+    }
+
+    .carousel-btn {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      background: rgba(255,255,255,0.8);
+      border: none;
+      border-radius: 50%;
+      width: 30px;
+      height: 30px;
+      font-size: 16px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10;
+    }
+
+    .carousel-btn.prev { left: 8px; }
+    .carousel-btn.next { right: 8px; }
+    .carousel-btn:disabled { opacity: 0.3; cursor: default; }
+
+    .carousel-dots {
+      position: absolute;
+      bottom: 8px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 4px;
+    }
+
+    .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.5);
+    }
+
+    .dot.active { background: #fff; }
+
+    /* Post body */
+    .post-body { padding: 12px; }
+
+    .post-meta {
+      font-size: 12px;
+      color: #8e8e8e;
+      margin-bottom: 8px;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .post-link {
+      color: #0095f6;
+      text-decoration: none;
+      font-size: 12px;
+    }
+
+    .caption {
+      font-size: 14px;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      word-break: break-word;
+      margin-bottom: 10px;
+      background: #fff;
+      padding: 10px;
+      border-radius: 6px;
+      border-left: 3px solid #0095f6;
+    }
+
+    .comments-section {
+      background: #f0f4f8;
+      border-radius: 6px;
+      padding: 10px;
+      margin-top: 4px;
+    }
+
+    .comments-label {
+      font-size: 12px;
+      font-weight: 700;
+      color: #4a5568;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .comment {
+      font-size: 13px;
+      line-height: 1.4;
+      padding: 6px 8px;
+      margin-bottom: 4px;
+      background: #fff;
+      border-radius: 6px;
+      border: 1px solid #e2e8f0;
+    }
+
+    .comment:last-child { margin-bottom: 0; }
+
+    .comment-user {
+      font-weight: 600;
+      margin-right: 4px;
+      color: #2d3748;
+    }
+
+    mark {
+      background: #ffe066;
+      border-radius: 2px;
+      padding: 0 1px;
+    }
+
+    .no-results {
+      text-align: center;
+      padding: 40px 16px;
+      color: #8e8e8e;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="header-row">
+    <input id="token-input" type="password" placeholder="Apify API token" />
+    <button id="fetch-btn">Fetch</button>
+  </div>
+  <div class="header-row">
+    <input id="keyword-input" type="text" placeholder="Keywords (comma-separated): meses, mes" />
+    <button id="filter-btn">Filter</button>
+  </div>
+</header>
+
+<div id="status"></div>
+<div id="loader" style="display:none">
+  <div class="loader-inner">
+    <div class="spinner"></div>
+    <div id="loader-text">Starting Apify run...</div>
+  </div>
+</div>
+<div id="feed"></div>
+
+<script>
+  const ACTOR_ID = 'apify~instagram-scraper';
+  const CACHE_KEY = 'igfetcher_posts';
+  const CACHE_DATE_KEY = 'igfetcher_date';
+  const TOKEN_KEY = 'igfetcher_token';
+
+  // Load saved token into input on startup
+  const savedToken = localStorage.getItem(TOKEN_KEY);
+  if (savedToken) document.getElementById('token-input').value = savedToken;
+
+  function getToken() {
+    const token = document.getElementById('token-input').value.trim();
+    if (!token) throw new Error('Please enter your Apify API token.');
+    localStorage.setItem(TOKEN_KEY, token);
+    return token;
+  }
+
+  let posts = [];
+
+  function loadFromCache() {
+    const cached = localStorage.getItem(CACHE_KEY);
+    const date = localStorage.getItem(CACHE_DATE_KEY);
+    if (cached) {
+      posts = JSON.parse(cached);
+      document.getElementById('status').textContent =
+        `${posts.length} posts loaded from cache (fetched ${date}). Enter keywords to filter.`;
+    } else {
+      fetch('sample.json')
+        .then(r => r.json())
+        .then(data => {
+          posts = data;
+          document.getElementById('status').textContent =
+            `${posts.length} posts loaded from sample data. Click "Fetch New Data" to get live data.`;
+        })
+        .catch(() => {
+          document.getElementById('status').textContent = 'No cached data. Click "Fetch New Data".';
+        });
+    }
+  }
+
+  loadFromCache();
+
+  document.getElementById('filter-btn').addEventListener('click', runFilter);
+  document.getElementById('keyword-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') runFilter();
+  });
+  document.getElementById('fetch-btn').addEventListener('click', fetchNewData);
+
+  async function fetchNewData() {
+    const fetchBtn = document.getElementById('fetch-btn');
+    const loader = document.getElementById('loader');
+    const loaderText = document.getElementById('loader-text');
+
+    let APIFY_TOKEN;
+    try { APIFY_TOKEN = getToken(); } catch (e) {
+      document.getElementById('status').textContent = e.message;
+      return;
+    }
+
+    fetchBtn.disabled = true;
+    loader.style.display = 'flex';
+    loaderText.textContent = 'Starting Apify run...';
+
+    try {
+      // Start the actor run
+      const runRes = await fetch(
+        `https://api.apify.com/v2/acts/${ACTOR_ID}/runs?token=${APIFY_TOKEN}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            directUrls: ['https://www.instagram.com/dralunabelleza/'],
+            resultsType: 'posts',
+            resultsLimit: 10000,
+            addParentData: false,
+          })
+        }
+      );
+
+      if (!runRes.ok) throw new Error(`Failed to start run: ${runRes.status}`);
+      const runData = await runRes.json();
+      const runId = runData.data.id;
+      const datasetId = runData.data.defaultDatasetId;
+
+      loaderText.textContent = 'Apify run started. This may take several minutes...';
+
+      // Poll until finished
+      await pollUntilFinished(runId, loaderText, APIFY_TOKEN);
+
+      // Fetch results from dataset
+      loaderText.textContent = 'Fetching results...';
+      const results = await fetchDataset(datasetId, APIFY_TOKEN);
+
+      // Save to cache
+      posts = results;
+      localStorage.setItem(CACHE_KEY, JSON.stringify(posts));
+      const now = new Date().toLocaleString();
+      localStorage.setItem(CACHE_DATE_KEY, now);
+
+      document.getElementById('status').textContent =
+        `${posts.length} posts fetched and cached (${now}). Enter keywords to filter.`;
+
+    } catch (err) {
+      document.getElementById('status').textContent = `Error: ${err.message}`;
+    } finally {
+      loader.style.display = 'none';
+      fetchBtn.disabled = false;
+    }
+  }
+
+  async function pollUntilFinished(runId, loaderText, APIFY_TOKEN) {
+    const POLL_INTERVAL = 10000;
+    while (true) {
+      await sleep(POLL_INTERVAL);
+      const res = await fetch(
+        `https://api.apify.com/v2/actor-runs/${runId}?token=${APIFY_TOKEN}`
+      );
+      const data = await res.json();
+      const status = data.data.status;
+      const stats = data.data.stats;
+      const itemCount = stats ? stats.itemCount : '?';
+      loaderText.textContent = `Running... ${itemCount} posts scraped so far. Status: ${status}`;
+      if (status === 'SUCCEEDED') return;
+      if (['FAILED', 'ABORTED', 'TIMED-OUT'].includes(status)) {
+        throw new Error(`Run ended with status: ${status}`);
+      }
+    }
+  }
+
+  async function fetchDataset(datasetId, APIFY_TOKEN) {
+    const limit = 1000;
+    let offset = 0;
+    let all = [];
+    while (true) {
+      const res = await fetch(
+        `https://api.apify.com/v2/datasets/${datasetId}/items?token=${APIFY_TOKEN}&limit=${limit}&offset=${offset}`
+      );
+      const batch = await res.json();
+      if (!batch.length) break;
+      all = all.concat(batch);
+      if (batch.length < limit) break;
+      offset += limit;
+    }
+    return all;
+  }
+
+  function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+  function getKeywords(input) {
+    return input.split(',')
+      .map(k => k.trim().toLowerCase())
+      .filter(k => k.length > 0);
+  }
+
+  function matchesKeyword(text, keywords) {
+    if (!text) return false;
+    const lower = text.toLowerCase();
+    return keywords.some(kw => {
+      const re = new RegExp(`(?<![a-záéíóúãõâêôàüç])${escapeRegex(kw)}(?![a-záéíóúãõâêôàüç])`, 'i');
+      return re.test(lower);
+    });
+  }
+
+  function escapeRegex(s) {
+    return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  function highlight(text, keywords) {
+    if (!text || keywords.length === 0) return escapeHtml(text || '');
+    let result = escapeHtml(text);
+    keywords.forEach(kw => {
+      const re = new RegExp(`(?<![a-záéíóúãõâêôàüç])(${escapeRegex(escapeHtml(kw))})(?![a-záéíóúãõâêôàüç])`, 'gi');
+      result = result.replace(re, '<mark>$1</mark>');
+    });
+    return result;
+  }
+
+  function escapeHtml(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function runFilter() {
+    const input = document.getElementById('keyword-input').value;
+    const keywords = getKeywords(input);
+    const feed = document.getElementById('feed');
+    const status = document.getElementById('status');
+    feed.innerHTML = '';
+
+    if (keywords.length === 0) {
+      status.textContent = 'Enter at least one keyword.';
+      return;
+    }
+
+    const filtered = posts.filter(post => {
+      const inCaption = matchesKeyword(post.caption, keywords);
+      const inComments = (post.latestComments || []).some(c => matchesKeyword(c.text, keywords));
+      return inCaption || inComments;
+    });
+
+    status.textContent = `${filtered.length} of ${posts.length} posts match.`;
+
+    if (filtered.length === 0) {
+      feed.innerHTML = '<div class="no-results">No posts matched your keywords.</div>';
+      return;
+    }
+
+    filtered.forEach(post => feed.appendChild(buildCard(post, keywords)));
+  }
+
+  function buildCard(post, keywords) {
+    const card = document.createElement('div');
+    card.className = 'post-card';
+
+    // Collect media slides
+    const slides = getSlides(post);
+    if (slides.length > 0) {
+      card.appendChild(buildCarousel(slides));
+    }
+
+    // Body
+    const body = document.createElement('div');
+    body.className = 'post-body';
+
+    // Meta
+    const meta = document.createElement('div');
+    meta.className = 'post-meta';
+    const date = post.timestamp ? new Date(post.timestamp).toLocaleDateString() : '';
+    meta.innerHTML = `<span>${date}</span><a class="post-link" href="${post.url}" target="_blank">View on Instagram ↗</a>`;
+    body.appendChild(meta);
+
+    // Caption
+    if (post.caption) {
+      const cap = document.createElement('div');
+      cap.className = 'caption';
+      cap.innerHTML = highlight(post.caption, keywords);
+      body.appendChild(cap);
+    }
+
+    // Comments
+    const comments = (post.latestComments || []).filter(c => c.text);
+    if (comments.length > 0) {
+      const sec = document.createElement('div');
+      sec.className = 'comments-section';
+      const label = document.createElement('div');
+      label.className = 'comments-label';
+      label.textContent = `Comments (${post.commentsCount || comments.length})`;
+      sec.appendChild(label);
+      comments.forEach(c => {
+        const div = document.createElement('div');
+        div.className = 'comment';
+        div.innerHTML = `<span class="comment-user">${escapeHtml(c.ownerUsername || '')}</span>${highlight(c.text, keywords)}`;
+        sec.appendChild(div);
+      });
+      body.appendChild(sec);
+    }
+
+    card.appendChild(body);
+    return card;
+  }
+
+  function getSlides(post) {
+    const slides = [];
+    if (post.type === 'Sidecar' && post.childPosts && post.childPosts.length > 0) {
+      post.childPosts.forEach(child => {
+        if (child.videoUrl) slides.push({ type: 'video', src: child.videoUrl, thumb: child.displayUrl });
+        else if (child.displayUrl) slides.push({ type: 'image', src: child.displayUrl });
+      });
+    } else if (post.videoUrl) {
+      slides.push({ type: 'video', src: post.videoUrl, thumb: post.displayUrl });
+    } else if (post.displayUrl) {
+      slides.push({ type: 'image', src: post.displayUrl });
+    }
+    return slides;
+  }
+
+  function buildCarousel(slides) {
+    const wrap = document.createElement('div');
+    wrap.className = 'carousel';
+
+    const track = document.createElement('div');
+    track.className = 'carousel-track';
+
+    slides.forEach(slide => {
+      const s = document.createElement('div');
+      s.className = 'carousel-slide';
+      if (slide.type === 'video') {
+        const v = document.createElement('video');
+        v.src = slide.src;
+        v.controls = true;
+        v.playsInline = true;
+        v.poster = slide.thumb || '';
+        v.preload = 'none';
+        s.appendChild(v);
+      } else {
+        const img = document.createElement('img');
+        img.src = slide.src;
+        img.loading = 'lazy';
+        img.alt = '';
+        s.appendChild(img);
+      }
+      track.appendChild(s);
+    });
+
+    wrap.appendChild(track);
+
+    if (slides.length > 1) {
+      const prev = document.createElement('button');
+      prev.className = 'carousel-btn prev';
+      prev.textContent = '‹';
+      prev.disabled = true;
+
+      const next = document.createElement('button');
+      next.className = 'carousel-btn next';
+      next.textContent = '›';
+
+      const dots = document.createElement('div');
+      dots.className = 'carousel-dots';
+      slides.forEach((_, i) => {
+        const d = document.createElement('div');
+        d.className = 'dot' + (i === 0 ? ' active' : '');
+        dots.appendChild(d);
+      });
+
+      let current = 0;
+      function goTo(idx) {
+        current = idx;
+        track.style.transform = `translateX(-${current * 100}%)`;
+        prev.disabled = current === 0;
+        next.disabled = current === slides.length - 1;
+        dots.querySelectorAll('.dot').forEach((d, i) => d.classList.toggle('active', i === current));
+      }
+
+      prev.addEventListener('click', () => goTo(current - 1));
+      next.addEventListener('click', () => goTo(current + 1));
+
+      // Touch swipe
+      let startX = 0;
+      wrap.addEventListener('touchstart', e => { startX = e.touches[0].clientX; }, { passive: true });
+      wrap.addEventListener('touchend', e => {
+        const diff = startX - e.changedTouches[0].clientX;
+        if (Math.abs(diff) > 40) {
+          if (diff > 0 && current < slides.length - 1) goTo(current + 1);
+          if (diff < 0 && current > 0) goTo(current - 1);
+        }
+      });
+
+      wrap.appendChild(prev);
+      wrap.appendChild(next);
+      wrap.appendChild(dots);
+    }
+
+    return wrap;
+  }
+</script>
+</body>
+</html>
