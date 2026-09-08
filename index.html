@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>IG Fetcher</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -574,6 +574,45 @@
     return slides;
   }
 
+  function addPinchZoom(el) {
+    let scale = 1, startDist = 0, originX = 0, originY = 0;
+
+    el.addEventListener('touchstart', e => {
+      if (e.touches.length === 2) {
+        e.preventDefault();
+        startDist = Math.hypot(
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY
+        );
+        const rect = el.getBoundingClientRect();
+        originX = ((e.touches[0].clientX + e.touches[1].clientX) / 2) - rect.left;
+        originY = ((e.touches[0].clientY + e.touches[1].clientY) / 2) - rect.top;
+        el.style.transformOrigin = `${originX}px ${originY}px`;
+        el.style.transition = 'none';
+      }
+    }, { passive: false });
+
+    el.addEventListener('touchmove', e => {
+      if (e.touches.length === 2) {
+        e.preventDefault();
+        const dist = Math.hypot(
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY
+        );
+        scale = Math.min(Math.max(dist / startDist, 1), 4);
+        el.style.transform = `scale(${scale})`;
+      }
+    }, { passive: false });
+
+    el.addEventListener('touchend', e => {
+      if (e.touches.length < 2) {
+        el.style.transition = 'transform 0.25s ease';
+        el.style.transform = 'scale(1)';
+        scale = 1;
+      }
+    });
+  }
+
   function buildCarousel(slides) {
     const wrap = document.createElement('div');
     wrap.className = 'carousel';
@@ -591,12 +630,14 @@
         v.playsInline = true;
         v.poster = slide.thumb || '';
         v.preload = 'none';
+        addPinchZoom(v);
         s.appendChild(v);
       } else {
         const img = document.createElement('img');
         img.src = slide.src;
         img.loading = 'lazy';
         img.alt = '';
+        addPinchZoom(img);
         s.appendChild(img);
       }
       track.appendChild(s);
