@@ -146,6 +146,7 @@
       display: flex;
       align-items: center;
       justify-content: center;
+      overflow: visible;
     }
 
     .carousel-slide img {
@@ -575,40 +576,94 @@
   }
 
   function addPinchZoom(el) {
-    let scale = 1, startDist = 0, originX = 0, originY = 0;
+    let scale = 1, startDist = 0;
+    let translateX = 0, translateY = 0;
+    let startTranslateX = 0, startTranslateY = 0;
+    let startMidX = 0, startMidY = 0;
+    let isPinching = false;
+
+    function applyTransform(transition = false) {
+      el.style.transition = transition ? 'transform 0.25s ease' : 'none';
+      el.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
+    }
 
     el.addEventListener('touchstart', e => {
       if (e.touches.length === 2) {
         e.preventDefault();
+        isPinching = true;
         startDist = Math.hypot(
           e.touches[0].clientX - e.touches[1].clientX,
           e.touches[0].clientY - e.touches[1].clientY
         );
-        const rect = el.getBoundingClientRect();
-        originX = ((e.touches[0].clientX + e.touches[1].clientX) / 2) - rect.left;
-        originY = ((e.touches[0].clientY + e.touches[1].clientY) / 2) - rect.top;
-        el.style.transformOrigin = `${originX}px ${originY}px`;
-        el.style.transition = 'none';
+        startMidX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+        startMidY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+        startTranslateX = translateX;
+        startTranslateY = translateY;
+        el.style.transformOrigin = 'center center';
       }
     }, { passive: false });
 
     el.addEventListener('touchmove', e => {
-      if (e.touches.length === 2) {
+      if (e.touches.length === 2 && isPinching) {
         e.preventDefault();
         const dist = Math.hypot(
           e.touches[0].clientX - e.touches[1].clientX,
           e.touches[0].clientY - e.touches[1].clientY
         );
-        scale = Math.min(Math.max(dist / startDist, 1), 4);
-        el.style.transform = `scale(${scale})`;
+        const newScale = Math.min(Math.max((dist / startDist) * scale, 1), 4);
+        const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+        const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+        translateX = startTranslateX + (midX - startMidX);
+        translateY = startTranslateY + (midY - startMidY);
+        scale = newScale;
+        applyTransform();
       }
     }, { passive: false });
 
     el.addEventListener('touchend', e => {
       if (e.touches.length < 2) {
-        el.style.transition = 'transform 0.25s ease';
-        el.style.transform = 'scale(1)';
+        if (scale <= 1) {
+          scale = 1;
+          translateX = 0;
+          translateY = 0;
+          applyTransform(true);
+        } else {
+          // Persist current scale/position for continued dragging
+          startDist = 0;
+        }
+        isPinching = false;
+      }
+    });
+
+    // Single finger drag while zoomed
+    let dragStartX = 0, dragStartY = 0;
+    let dragTranslateX = 0, dragTranslateY = 0;
+
+    el.addEventListener('touchstart', e => {
+      if (e.touches.length === 1 && scale > 1) {
+        e.preventDefault();
+        dragStartX = e.touches[0].clientX;
+        dragStartY = e.touches[0].clientY;
+        dragTranslateX = translateX;
+        dragTranslateY = translateY;
+      }
+    }, { passive: false });
+
+    el.addEventListener('touchmove', e => {
+      if (e.touches.length === 1 && scale > 1 && !isPinching) {
+        e.preventDefault();
+        translateX = dragTranslateX + (e.touches[0].clientX - dragStartX);
+        translateY = dragTranslateY + (e.touches[0].clientY - dragStartY);
+        applyTransform();
+      }
+    }, { passive: false });
+
+    el.addEventListener('touchend', e => {
+      if (e.touches.length === 0 && scale <= 1) {
         scale = 1;
+        translateX = 0;
+        translateY = 0;
+        applyTransform(true);
       }
     });
   }
