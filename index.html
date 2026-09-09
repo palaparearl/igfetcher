@@ -747,8 +747,16 @@
 
       // Touch swipe
       let startX = 0;
-      wrap.addEventListener('touchstart', e => { startX = e.touches[0].clientX; }, { passive: true });
+      let wasPinching = false;
+      wrap.addEventListener('touchstart', e => {
+        if (e.touches.length === 2) { wasPinching = true; }
+        if (e.touches.length === 1) { startX = e.touches[0].clientX; }
+      }, { passive: true });
       wrap.addEventListener('touchend', e => {
+        if (wasPinching) {
+          if (e.touches.length === 0) wasPinching = false;
+          return;
+        }
         const diff = startX - e.changedTouches[0].clientX;
         if (Math.abs(diff) > 40) {
           if (diff > 0 && current < slides.length - 1) goTo(current + 1);
